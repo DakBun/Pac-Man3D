@@ -34,7 +34,7 @@ public partial class CameraController : Camera3D
         GlobalPosition = GlobalPosition.Lerp(targetPosition, _positionLerpSpeed * dt);
 
         // Slerp rotation để nhìn về phía Player mượt mà
-        Transform3D lookAt = Transform3D.LookingAt(GlobalPosition, _followTarget.GlobalPosition, Vector3.Up);
-        GlobalTransform = GlobalTransform.Slerp(lookAt, _rotationLerpSpeed * dt);
+        Basis targetBasis = Basis.LookingAt(_followTarget.GlobalPosition - GlobalPosition, Vector3.Up);
+        GlobalBasis = GlobalBasis.Slerp(targetBasis, _rotationLerpSpeed * dt);
     }
 }

@@ -12,7 +12,7 @@ public partial class MazeGrid : Node3D
     [Export] private float _cellSize = 1.0f;
 
     // Mã hóa ma trận: 0 = đường đi, 1 = tường
-    [Export] private int[,] _gridData = new int[0, 0];
+    private int[,] _gridData = new int[0, 0];
 
     // Tọa độ gốc của lưới trong World Space (ô [0,0])
     [Export] private Vector3 _gridOrigin = Vector3.Zero;
@@ -32,6 +32,16 @@ public partial class MazeGrid : Node3D
         {
             IsReady = true;
         }
+    }
+
+    /// <summary>
+    /// Nạp ma trận mê cung từ bên ngoài (MazeGenerator hoặc code khởi tạo).
+    /// 0 = đường đi, 1 = tường.
+    /// </summary>
+    public void LoadGridData(int[,] data)
+    {
+        _gridData = data;
+        IsReady = _gridData.GetLength(0) > 0 && _gridData.GetLength(1) > 0;
     }
 
     /// <summary>

@@ -27,6 +27,10 @@ public partial class PlayerController : CharacterBody3D
     // Hướng di chuyển tiếp theo mà người chơi nhấn (để đổi hướng tại giao lộ)
     private Vector2I _nextDirection = Vector2I.Zero;
 
+    // Hướng Pac-Man đang đi. Đây là trạng thái RIÊNG của Player, không dùng
+    // MazeGrid.ForwardDirection vì đó là state dùng chung cho cả ghost.
+    private Vector2I _currentDirection = Vector2I.Zero;
+
     public override void _Ready()
     {
         // Lấy tham chiếu đến MazeGrid từ Scene Tree
@@ -42,6 +46,33 @@ public partial class PlayerController : CharacterBody3D
         _targetGridPos = _currentGridPos;
         _targetWorldPos = _mazeGrid.GridToWorld(_targetGridPos);
         GlobalPosition = _targetWorldPos;
+    }
+
+    /// <summary>
+    /// Nhận phím mũi tên hoặc WASD và đặt hướng đi mong muốn.
+    /// Hướng chỉ được áp dụng khi Pac-Man đến giữa ô kế tiếp (xem _PhysicsProcess).
+    /// </summary>
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (@event is not InputEventKey key || !key.Pressed || key.Echo)
+        {
+            return;
+        }
+
+        // Trục Y của lưới ứng với trục Z của world, nên lên = (0, -1).
+        Vector2I direction = key.PhysicalKeycode switch
+        {
+            Key.Up or Key.W => new Vector2I(0, -1),
+            Key.Down or Key.S => new Vector2I(0, 1),
+            Key.Left or Key.A => new Vector2I(-1, 0),
+            Key.Right or Key.D => new Vector2I(1, 0),
+            _ => Vector2I.Zero
+        };
+
+        if (direction != Vector2I.Zero)
+        {
+            SetNextDirection(direction);
+        }
     }
 
     public override void _PhysicsProcess(double delta)
@@ -61,13 +92,20 @@ public partial class PlayerController : CharacterBody3D
             // Thử áp dụng hướng tiếp theo nếu hợp lệ
             if (_nextDirection != Vector2I.Zero && _mazeGrid.IsWalkable(_currentGridPos + _nextDirection))
             {
-                _targetGridPos = _currentGridPos + _nextDirection;
+                _currentDirection = _nextDirection;
                 _nextDirection = Vector2I.Zero;
             }
-            // Nếu không có hướng mới, tiếp tục đi thẳng nếu có thể
-            else if (_mazeGrid.IsWalkable(_currentGridPos + _mazeGrid.ForwardDirection))
+
+            // Đi thẳng theo hướng hiện tại nếu ô kế tiếp đi được.
+            // Nếu bị tường chặn (hoặc chưa nhấn phím nào) thì đứng yên tại chỗ,
+            // đích trùng vị trí hiện tại nên vòng lặp không bị kẹt.
+            if (_currentDirection != Vector2I.Zero && _mazeGrid.IsWalkable(_currentGridPos + _currentDirection))
             {
-                _targetGridPos = _currentGridPos + _mazeGrid.ForwardDirection;
+                _targetGridPos = _currentGridPos + _currentDirection;
+            }
+            else
+            {
+                _targetGridPos = _currentGridPos;
             }
 
             _targetWorldPos = _mazeGrid.GridToWorld(_targetGridPos);

@@ -1,3 +1,4 @@
+using PacManGame.Core;
 using Godot;
 
 namespace PacManGame.Items;

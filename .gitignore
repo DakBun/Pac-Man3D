@@ -1,3 +1,17 @@
-# Godot 4+ specific ignores
-.godot/
-/android/
+﻿.godot/
+temp_repo/
+temp_repo2/
+temp_repo3/
+temp_repo_enrique/
+*.log
+p2a_*.txt
+scan-report.md
+NewScript.cs
+NewScript.cs.uid
+snippet2.txt
+cleanup.ps1
+clinerules.txt
+gitignore.txt
+node_3d.tscn
+bin/
+obj/

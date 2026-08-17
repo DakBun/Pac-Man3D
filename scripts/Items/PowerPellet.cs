@@ -1,3 +1,4 @@
+using PacManGame.Core;
 using Godot;
 using Godot.Collections;
 using PacManGame.Ghosts;

@@ -1,3 +1,4 @@
+using PacManGame.Core;
 using Godot;
 using Godot.Collections;
 using PacManGame.Maze;
@@ -16,6 +17,9 @@ public partial class GhostAI : CharacterBody3D
 
     [Export] private float _modeTimerDuration = 7.0f;
 
+    /// <summary>Thời gian ma ở trạng thái Frightened sau khi Pac-Man ăn Power Pellet.</summary>
+    [Export] private float _frightenedDuration = 6.0f;
+
     private MazeGrid? _mazeGrid;
     private GameManager? _gameManager;
 
@@ -29,7 +33,9 @@ public partial class GhostAI : CharacterBody3D
     [Export] private Vector2I _scatterTarget;
 
     private float _modeTimer = 0f;
-    private bool _isFrightenedExpired = false;
+
+    // Đếm ngược thời gian còn lại của trạng thái Frightened.
+    private float _frightenedTimer = 0f;
 
     public override void _Ready()
     {
@@ -81,17 +87,14 @@ public partial class GhostAI : CharacterBody3D
         CurrentMode = newMode;
         _modeTimer = 0f;
 
-        if (newMode == GhostMode.Frightened && _gameManager != null)
+        // Frightened hết hạn bằng đồng hồ riêng, không dựa vào event điểm/mạng
+        // của GameManager (event đó bắn mỗi lần đổi điểm, sẽ làm Frightened
+        // kết thúc gần như tức thì khi Pac-Man ăn viên pellet kế tiếp).
+        if (newMode == GhostMode.Frightened)
         {
-            _gameManager.OnGameDataChanged += OnFrightenedExpired;
-        }
-        else
-        {
-            _gameManager?.OnGameDataChanged -= OnFrightenedExpired;
+            _frightenedTimer = _frightenedDuration;
         }
     }
-
-    private void OnFrightenedExpired() => _isFrightenedExpired = true;
 
     private void UpdateModeTimer(float delta)
     {
@@ -105,10 +108,13 @@ public partial class GhostAI : CharacterBody3D
                 SetMode(next);
             }
         }
-        else if (_isFrightenedExpired)
+        else
         {
-            _isFrightenedExpired = false;
-            SetMode(GhostMode.Scatter);
+            _frightenedTimer -= delta;
+            if (_frightenedTimer <= 0f)
+            {
+                SetMode(GhostMode.Scatter);
+            }
         }
     }
 
@@ -120,7 +126,7 @@ public partial class GhostAI : CharacterBody3D
         // Thuật toán đơn giản: tìm các hướng có thể đi, chọn hướng gần mục tiêu nhất
         Vector2I bestDir = Vector2I.Zero;
         float bestDist = float.MaxValue;
-        Vector2I target = CurrentMode == GhostMode.Eaten ? _mazeGrid!.GridToWorld(Vector2I.Zero) : Vector2I.Zero;
+        Vector2I target = Vector2I.Zero;
 
         if (CurrentMode is GhostMode.Chase || CurrentMode is GhostMode.Scatter)
         {

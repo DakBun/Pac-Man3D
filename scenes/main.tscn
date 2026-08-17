@@ -1,0 +1,52 @@
+[gd_scene format=3 uid="uid://dx1458eclxtye"]
+
+[ext_resource type="Script" uid="uid://cck7d0034t5mn" path="res://scripts/Core/GameManager.cs" id="1_gm"]
+[ext_resource type="Script" uid="uid://bpr5mvqepiwwc" path="res://scripts/Maze/MazeGrid.cs" id="2_grid"]
+[ext_resource type="Script" uid="uid://w0gajrklv7up" path="res://scripts/Maze/MazeGenerator.cs" id="3_gen"]
+[ext_resource type="MeshLibrary" uid="uid://db8gfssbvoo8o" path="res://maze_blocks.tres" id="4_lib"]
+[ext_resource type="Script" uid="uid://bcp4lmmiq0yy6" path="res://scripts/Player/PlayerController.cs" id="5_player"]
+[ext_resource type="Script" uid="uid://ctsd4v3gbp8hr" path="res://scripts/Camera/CameraController.cs" id="6_cam"]
+[ext_resource type="Texture2D" uid="uid://beq6drb2qxxt3" path="res://assets/maze_map_arcade.png" id="7_tex"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_player"]
+radius = 0.4
+height = 0.8
+
+[sub_resource type="SphereShape3D" id="SphereShape_player"]
+radius = 0.4
+
+[node name="Main" type="Node3D"]
+
+[node name="GameManager" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("1_gm")
+
+[node name="MazeGrid" type="Node3D" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2_grid")
+
+[node name="MazeGenerator" type="GridMap" parent="." node_paths=PackedStringArray("TargetGrid")]
+cell_size = Vector3(1, 1, 1)
+mesh_library = ExtResource("4_lib")
+script = ExtResource("3_gen")
+MazeTexture = ExtResource("7_tex")
+TargetGrid = NodePath("../MazeGrid")
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 1.5)
+script = ExtResource("5_player")
+
+[node name="Mesh" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("SphereMesh_player")
+
+[node name="Collision" type="CollisionShape3D" parent="Player"]
+shape = SubResource("SphereShape_player")
+
+[node name="Camera" type="Camera3D" parent="." node_paths=PackedStringArray("_followTarget")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 22, 10.5)
+script = ExtResource("6_cam")
+_followTarget = NodePath("../Player")
+_offset = Vector3(0, 22, 9)
+
+[node name="Light" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, -0.707107, 0, 0.707107, 0.707107, 0, 0, 0)
