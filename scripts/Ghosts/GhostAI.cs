@@ -1,13 +1,15 @@
 using PacManGame.Core;
 using Godot;
-using Godot.Collections;
+using System.Collections.Generic;
 using PacManGame.Maze;
 
 namespace PacManGame.Ghosts;
 
 /// <summary>
-/// AI cơ bản cho Ghost: FSM (Finite State Machine) với 4 trạng thái
-/// (Scatter, Chase, Frightened, Eaten) và hệ thống đổi hướng tự động tại giao lộ.
+/// AI cho Ghost: FSM (Finite State Machine) với 4 trạng thái
+/// (Scatter, Chase, Frightened, Eaten). Việc chọn ô kế tiếp dùng A* qua
+/// PathfindingService thay vì so khoảng cách tham lam một bước, nên ghost
+/// không còn kẹt dao động ở ngõ cụt hay góc hẹp.
 /// </summary>
 public partial class GhostAI : CharacterBody3D
 {
@@ -15,10 +17,17 @@ public partial class GhostAI : CharacterBody3D
     [Export] private float _frightenedSpeed = 2.0f;
     [Export] private float _eatenSpeed = 8.0f;
 
-    [Export] private float _modeTimerDuration = 7.0f;
+    /// <summary>Thời gian bám đuổi Pac-Man trước khi chuyển sang Scatter.</summary>
+    [Export] private float _chaseDuration = 12.0f;
+
+    /// <summary>Thời gian rút về góc riêng trước khi quay lại Chase.</summary>
+    [Export] private float _scatterDuration = 4.0f;
 
     /// <summary>Thời gian ma ở trạng thái Frightened sau khi Pac-Man ăn Power Pellet.</summary>
     [Export] private float _frightenedDuration = 6.0f;
+
+    // Điểm scatter riêng cho từng loại ghost (ví dụ: góc của mê cung)
+    [Export] private Vector2I _scatterTarget;
 
     private MazeGrid? _mazeGrid;
     private GameManager? _gameManager;
@@ -30,10 +39,10 @@ public partial class GhostAI : CharacterBody3D
     private Vector2I _targetGridPos;
     private Vector3 _targetWorldPos;
 
-    public GhostMode CurrentMode { get; private set; } = GhostMode.Scatter;
+    // Ô xuất phát, dùng làm đích khi ở trạng thái Eaten.
+    private Vector2I _spawnGridPos;
 
-    // Điểm scatter riêng cho từng loại ghost (ví dụ: góc của mê cung)
-    [Export] private Vector2I _scatterTarget;
+    public GhostMode CurrentMode { get; private set; } = GhostMode.Scatter;
 
     private float _modeTimer = 0f;
 
@@ -58,8 +67,12 @@ public partial class GhostAI : CharacterBody3D
         }
 
         _currentGridPos = _mazeGrid.WorldToGrid(GlobalPosition);
+        _spawnGridPos = _currentGridPos;
         _targetGridPos = _currentGridPos;
         _targetWorldPos = _mazeGrid.GridToWorld(_targetGridPos);
+
+        // Vào Chase ngay để người chơi thấy ghost đuổi từ đầu.
+        SetMode(GhostMode.Chase);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -107,93 +120,172 @@ public partial class GhostAI : CharacterBody3D
 
     private void UpdateModeTimer(float delta)
     {
-        if (CurrentMode != GhostMode.Frightened)
-        {
-            _modeTimer += delta;
-            // Ví dụ: sau khoảng thời gian, đổi giữa Chase/Scatter
-            if (_modeTimer >= _modeTimerDuration)
-            {
-                GhostMode next = CurrentMode == GhostMode.Scatter ? GhostMode.Chase : GhostMode.Scatter;
-                SetMode(next);
-            }
-        }
-        else
+        if (CurrentMode == GhostMode.Frightened)
         {
             _frightenedTimer -= delta;
             if (_frightenedTimer <= 0f)
             {
-                SetMode(GhostMode.Scatter);
+                SetMode(GhostMode.Chase);
             }
+            return;
+        }
+
+        if (CurrentMode == GhostMode.Eaten)
+        {
+            // Về tới ổ thì hồi sinh và đuổi tiếp.
+            if (_currentGridPos == _spawnGridPos)
+            {
+                SetMode(GhostMode.Chase);
+            }
+            return;
+        }
+
+        _modeTimer += delta;
+
+        // Chase dài hơn Scatter nhiều để ghost chủ yếu bám Pac-Man, thay vì
+        // đứng lì ở góc riêng như khi hai khoảng thời gian bằng nhau.
+        float limit = CurrentMode == GhostMode.Chase ? _chaseDuration : _scatterDuration;
+
+        if (_modeTimer >= limit)
+        {
+            SetMode(CurrentMode == GhostMode.Chase ? GhostMode.Scatter : GhostMode.Chase);
         }
     }
 
     /// <summary>
     /// Ô lưới mà ghost đang hướng tới, tuỳ theo trạng thái FSM.
-    /// Chase bám Pac-Man, Scatter về góc riêng, Frightened chạy ngược ra xa.
+    /// Mọi giá trị trả về đều là ô đi được, vì A* từ chối tìm đường tới tường.
     /// </summary>
     private Vector2I GetTargetCell()
     {
-        Vector2I playerCell = _currentGridPos;
-        if (_player != null && _mazeGrid != null)
-        {
-            playerCell = _mazeGrid.WorldToGrid(_player.GlobalPosition);
-        }
-
         switch (CurrentMode)
         {
             case GhostMode.Chase:
-                return playerCell;
+                return GetPlayerCell();
 
             case GhostMode.Frightened:
-                // Lấy điểm đối xứng của Pac-Man qua ghost để chạy ra xa.
-                return _currentGridPos + (_currentGridPos - playerCell);
+                return GetFarthestCornerFromPlayer();
 
             case GhostMode.Eaten:
+                return _spawnGridPos;
+
             case GhostMode.Scatter:
             default:
                 return _scatterTarget;
         }
     }
 
-    private void ChooseNextDirection()
+    private Vector2I GetPlayerCell()
     {
-        // Lấy hướng ngược lại so với vừa đi đến để không quay đầu (trừ khi đi ngược tuyệt đối)
-        Vector2I reverse = -(_targetGridPos - _currentGridPos);
-
-        // Thuật toán đơn giản: tìm các hướng có thể đi, chọn hướng gần mục tiêu nhất
-        Vector2I bestDir = Vector2I.Zero;
-        float bestDist = float.MaxValue;
-        Vector2I target = GetTargetCell();
-
-        Vector2I[] dirs = [Vector2I.Up, Vector2I.Down, Vector2I.Left, Vector2I.Right];
-        foreach (Vector2I dir in dirs)
+        if (_player == null || _mazeGrid == null)
         {
-            if (dir == reverse) continue;
-            Vector2I next = _currentGridPos + dir;
-            if (_mazeGrid!.IsWalkable(next))
+            return _scatterTarget;
+        }
+
+        return _mazeGrid.WorldToGrid(_player.GlobalPosition);
+    }
+
+    /// <summary>
+    /// Khi sợ, ghost chạy về góc xa Pac-Man nhất. Dùng góc cố định thay vì
+    /// điểm đối xứng qua ghost, vì điểm đối xứng có thể rơi vào tường hoặc
+    /// ra ngoài lưới, khiến A* trả về null.
+    /// </summary>
+    private Vector2I GetFarthestCornerFromPlayer()
+    {
+        if (_mazeGrid == null)
+        {
+            return _scatterTarget;
+        }
+
+        int lastRow = _mazeGrid.GetRows() - 2;
+        int lastCol = _mazeGrid.GetCols() - 2;
+
+        Vector2I[] corners =
+        [
+            new Vector2I(1, 1),
+            new Vector2I(lastCol, 1),
+            new Vector2I(1, lastRow),
+            new Vector2I(lastCol, lastRow)
+        ];
+
+        Vector2I playerCell = GetPlayerCell();
+        Vector2I best = _scatterTarget;
+        float bestDist = -1f;
+
+        foreach (Vector2I corner in corners)
+        {
+            if (!_mazeGrid.IsWalkable(corner))
             {
-                float dist = next.DistanceTo(target);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    bestDir = dir;
-                }
+                continue;
+            }
+
+            float dist = corner.DistanceTo(playerCell);
+            if (dist > bestDist)
+            {
+                bestDist = dist;
+                best = corner;
             }
         }
 
-        if (bestDir != Vector2I.Zero)
+        return best;
+    }
+
+    /// <summary>
+    /// Chọn ô kế tiếp bằng A*. Đường đi được tính lại mỗi khi ghost tới giữa
+    /// một ô, nên nó bám theo Pac-Man đang di chuyển. Lưới chỉ 21x21 = 441 ô
+    /// nên chi phí không đáng kể.
+    /// </summary>
+    private void ChooseNextDirection()
+    {
+        if (_mazeGrid == null)
         {
-            _targetGridPos = _currentGridPos + bestDir;
+            return;
         }
-        else if (reverse != Vector2I.Zero && _mazeGrid!.IsWalkable(_currentGridPos + reverse))
+
+        Vector2I target = GetTargetCell();
+
+        if (target != _currentGridPos)
         {
-            // Ngõ cụt: phải quay đầu.
-            _targetGridPos = _currentGridPos + reverse;
+            List<Vector2I>? path = PathfindingService.FindPath(_mazeGrid, _currentGridPos, target);
+
+            // path[0] là ô hiện tại, path[1] là ô kế tiếp cần đi tới.
+            if (path != null && path.Count >= 2)
+            {
+                _targetGridPos = path[1];
+                return;
+            }
         }
-        else
+
+        // Dự phòng khi A* không tìm được đường (đích trùng vị trí hiện tại,
+        // hoặc mê cung bị chia cắt): đi tham lam về phía mục tiêu.
+        ChooseNextDirectionGreedy(target);
+    }
+
+    private void ChooseNextDirectionGreedy(Vector2I target)
+    {
+        Vector2I[] dirs = [Vector2I.Up, Vector2I.Down, Vector2I.Left, Vector2I.Right];
+
+        Vector2I bestDir = Vector2I.Zero;
+        float bestDist = float.MaxValue;
+
+        foreach (Vector2I dir in dirs)
         {
-            // Bị kẹt hoàn toàn (không nên xảy ra với mê cung liên thông): đứng yên.
-            _targetGridPos = _currentGridPos;
+            Vector2I next = _currentGridPos + dir;
+            if (!_mazeGrid!.IsWalkable(next))
+            {
+                continue;
+            }
+
+            float dist = next.DistanceTo(target);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestDir = dir;
+            }
         }
+
+        _targetGridPos = bestDir == Vector2I.Zero
+            ? _currentGridPos
+            : _currentGridPos + bestDir;
     }
 }
