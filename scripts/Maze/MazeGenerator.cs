@@ -1,4 +1,5 @@
 using Godot;
+using PacManGame.Items;
 
 namespace PacManGame.Maze;
 
@@ -28,6 +29,11 @@ public partial class MazeGenerator : GridMap
     /// In ma trận mê cung ra Output panel để đối chiếu bằng mắt.
     /// </summary>
     [Export] public bool DebugPrintGrid { get; set; } = true;
+
+    /// <summary>
+    /// Tự động rải pellet vào mọi ô đường đi sau khi dựng mê cung.
+    /// </summary>
+    [Export] public bool SpawnPellets { get; set; } = true;
 
     // --- Hình học của ảnh bản đồ, đo trực tiếp trên assets/maze_map_arcade.png ---
     // Ảnh gồm các dải xen kẽ: tường dày 8 px, hành lang rộng 40 px, bước lặp 48 px.
@@ -64,6 +70,60 @@ public partial class MazeGenerator : GridMap
         {
             GD.PrintErr("[MazeGenerator] MazeTexture chưa được gán trong Inspector - không tạo được mê cung.");
         }
+    }
+
+    /// <summary>
+    /// Rải pellet vào mọi ô đường đi. Toàn bộ pellet dựng bằng code thay vì
+    /// PackedScene để khỏi phải quản lý thêm một file .tscn, và để mesh/shape
+    /// dùng chung một instance cho cả 237 viên.
+    /// </summary>
+    private void CreatePellets(int[,] gridData)
+    {
+        var pelletsRoot = new Node3D { Name = "Pellets" };
+        AddChild(pelletsRoot);
+
+        // Dùng chung tài nguyên cho mọi viên để không tạo 237 bản sao.
+        var pelletMesh = new SphereMesh
+        {
+            Radius = 0.12f,
+            Height = 0.24f,
+            RadialSegments = 8,
+            Rings = 4
+        };
+        var pelletMaterial = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.9f, 0.55f) };
+        var pelletShape = new SphereShape3D { Radius = 0.3f };
+
+        int pelletCount = 0;
+
+        for (int z = 0; z < MazeSize; z++)
+        {
+            for (int x = 0; x < MazeSize; x++)
+            {
+                if (gridData[z, x] != 0)
+                {
+                    continue;
+                }
+
+                var pellet = new Pellet
+                {
+                    Name = $"Pellet_{x}_{z}",
+                    // Khớp với MazeGrid.GridToWorld: tâm ô là (x + 0.5, z + 0.5).
+                    Position = new Vector3(x + 0.5f, 0f, z + 0.5f)
+                };
+
+                pellet.AddChild(new MeshInstance3D
+                {
+                    Mesh = pelletMesh,
+                    MaterialOverride = pelletMaterial
+                });
+                pellet.AddChild(new CollisionShape3D { Shape = pelletShape });
+
+                pelletsRoot.AddChild(pellet);
+                pelletCount++;
+            }
+        }
+
+        GD.Print($"[MazeGenerator] Đã rải {pelletCount} pellet.");
     }
 
     /// <summary>
@@ -137,6 +197,11 @@ public partial class MazeGenerator : GridMap
         else
         {
             GD.PrintErr("[MazeGenerator] TargetGrid chưa được gán trong Inspector - MazeGrid sẽ rỗng, ghost không tìm đường được.");
+        }
+
+        if (SpawnPellets)
+        {
+            CreatePellets(gridData);
         }
 
         int freeCount = MazeSize * MazeSize - wallCount;

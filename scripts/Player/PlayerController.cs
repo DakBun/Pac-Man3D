@@ -26,6 +26,9 @@ public partial class PlayerController : CharacterBody3D
     private Node3D? _ghost;
     private Label? _gameOverLabel;
 
+    // Node chứa toàn bộ pellet, do MazeGenerator tạo lúc chạy.
+    private Node3D? _pelletsRoot;
+
     // Vị trí lưới hiện tại và đích
     private Vector2I _currentGridPos;
     private Vector2I _targetGridPos;
@@ -150,6 +153,7 @@ public partial class PlayerController : CharacterBody3D
         MoveAndSlide();
 
         CheckGhostCollision();
+        CheckWinCondition();
     }
 
     /// <summary>
@@ -179,6 +183,40 @@ public partial class PlayerController : CharacterBody3D
         {
             TriggerGameOver();
         }
+    }
+
+    /// <summary>
+    /// Thắng khi không còn pellet nào. Node Pellets do MazeGenerator tạo lúc
+    /// chạy nên phải tra cứu trễ, không lấy được trong _Ready.
+    /// </summary>
+    private void CheckWinCondition()
+    {
+        if (_isGameOver)
+        {
+            return;
+        }
+
+        _pelletsRoot ??= GetNodeOrNull<Node3D>("%MazeGenerator/Pellets");
+
+        if (_pelletsRoot != null && _pelletsRoot.GetChildCount() == 0)
+        {
+            TriggerWin();
+        }
+    }
+
+    private void TriggerWin()
+    {
+        _isGameOver = true;
+        GD.Print("[PlayerController] Đã ăn hết pellet - thắng.");
+
+        if (_gameOverLabel != null)
+        {
+            _gameOverLabel.Text = "YOU WIN\nNhan R de choi lai";
+            _gameOverLabel.Modulate = new Color(0.4f, 1f, 0.5f);
+            _gameOverLabel.Visible = true;
+        }
+
+        GetTree().Paused = true;
     }
 
     private void TriggerGameOver()

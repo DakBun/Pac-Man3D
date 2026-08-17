@@ -33,6 +33,7 @@ unique_name_in_owner = true
 script = ExtResource("2_grid")
 
 [node name="MazeGenerator" type="GridMap" parent="." node_paths=PackedStringArray("TargetGrid")]
+unique_name_in_owner = true
 cell_size = Vector3(1, 1, 1)
 mesh_library = ExtResource("4_lib")
 script = ExtResource("3_gen")
