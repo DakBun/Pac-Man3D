@@ -15,9 +15,14 @@ public partial class MazeGenerator : GridMap
     [Export] public Texture2D? MazeTexture { get; set; }
 
     /// <summary>
-    /// ID mesh tường tương ứng trong GridMap (cần được định nghĩa trong Inspector của GridMap).
+    /// ID mesh tường bên trong mê cung (item 0 trong MeshLibrary - màu đen).
     /// </summary>
     [Export] public int WallMeshId { get; set; } = 0;
+
+    /// <summary>
+    /// ID mesh tường viền ngoài khung (item 1 trong MeshLibrary - màu xanh).
+    /// </summary>
+    [Export] public int BorderMeshId { get; set; } = 1;
 
     /// <summary>
     /// Node MazeGrid nhận ma trận logic của mê cung (dùng cho pathfinding).
@@ -85,12 +90,18 @@ public partial class MazeGenerator : GridMap
         // Dùng chung tài nguyên cho mọi viên để không tạo 237 bản sao.
         var pelletMesh = new SphereMesh
         {
-            Radius = 0.12f,
-            Height = 0.24f,
+            Radius = 0.14f,
+            Height = 0.28f,
             RadialSegments = 8,
             Rings = 4
         };
-        var pelletMaterial = new StandardMaterial3D { AlbedoColor = new Color(1f, 0.9f, 0.55f) };
+        // Unshaded để pellet giữ đúng màu vàng trên nền đen, không bị ánh
+        // sáng môi trường làm xám đi.
+        var pelletMaterial = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(1f, 0.85f, 0.25f)
+        };
         var pelletShape = new SphereShape3D { Radius = 0.3f };
 
         int pelletCount = 0;
@@ -179,7 +190,11 @@ public partial class MazeGenerator : GridMap
                 //   2. B > R và B > G để đảm bảo xanh chiếm ưu thế so với đỏ và lục.
                 if (pixelColor.B > 0.1f && pixelColor.B > pixelColor.R && pixelColor.B > pixelColor.G)
                 {
-                    SetCellItem(new Vector3I(x, 0, z), WallMeshId);
+                    // Ô nằm trên vành ngoài cùng dùng mesh viền xanh,
+                    // tường bên trong dùng mesh đen.
+                    bool isBorder = x == 0 || z == 0 || x == MazeSize - 1 || z == MazeSize - 1;
+                    SetCellItem(new Vector3I(x, 0, z), isBorder ? BorderMeshId : WallMeshId);
+
                     gridData[z, x] = 1;
                     wallCount++;
                 }
