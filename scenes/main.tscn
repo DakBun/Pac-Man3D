@@ -16,6 +16,21 @@ height = 0.8
 [sub_resource type="SphereShape3D" id="SphereShape_player"]
 radius = 0.4
 
+[sub_resource type="Environment" id="Env_main"]
+background_mode = 1
+background_color = Color(0.02, 0.02, 0.06, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.35, 0.4, 0.6, 1)
+ambient_light_energy = 0.5
+tonemap_mode = 2
+
+[sub_resource type="PlaneMesh" id="Plane_floor"]
+size = Vector2(21, 21)
+
+[sub_resource type="StandardMaterial3D" id="Mat_floor"]
+albedo_color = Color(0.04, 0.04, 0.09, 1)
+roughness = 0.9
+
 [sub_resource type="StandardMaterial3D" id="Mat_ghost"]
 albedo_color = Color(0.9, 0.15, 0.15, 1)
 
@@ -72,6 +87,14 @@ script = ExtResource("6_cam")
 _followTarget = NodePath("../Player")
 _offset = Vector3(0, 22, 9)
 
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_main")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, -0.5, 10.5)
+mesh = SubResource("Plane_floor")
+material_override = SubResource("Mat_floor")
+
 [node name="Light" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, -0.707107, 0, 0.707107, 0.707107, 0, 0, 0)
 
@@ -84,6 +107,12 @@ visible = false
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 2
 theme_override_colors/font_color = Color(1, 0.25, 0.25, 1)
 theme_override_font_sizes/font_size = 44
 text = "GAME OVER
