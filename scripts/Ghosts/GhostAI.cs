@@ -23,6 +23,9 @@ public partial class GhostAI : CharacterBody3D
     private MazeGrid? _mazeGrid;
     private GameManager? _gameManager;
 
+    // Pac-Man, dùng làm mục tiêu ở trạng thái Chase.
+    private Node3D? _player;
+
     private Vector2I _currentGridPos;
     private Vector2I _targetGridPos;
     private Vector3 _targetWorldPos;
@@ -41,11 +44,17 @@ public partial class GhostAI : CharacterBody3D
     {
         _mazeGrid = GetNodeOrNull<MazeGrid>("%MazeGrid");
         _gameManager = GetNodeOrNull<GameManager>("%GameManager");
+        _player = GetNodeOrNull<Node3D>("%Player");
 
         if (_mazeGrid == null)
         {
             GD.PrintErr("[GhostAI] Thiếu MazeGrid node.");
             return;
+        }
+
+        if (_player == null)
+        {
+            GD.PrintErr("[GhostAI] Thiếu Player node - trạng thái Chase sẽ không bám được Pac-Man.");
         }
 
         _currentGridPos = _mazeGrid.WorldToGrid(GlobalPosition);
@@ -118,6 +127,34 @@ public partial class GhostAI : CharacterBody3D
         }
     }
 
+    /// <summary>
+    /// Ô lưới mà ghost đang hướng tới, tuỳ theo trạng thái FSM.
+    /// Chase bám Pac-Man, Scatter về góc riêng, Frightened chạy ngược ra xa.
+    /// </summary>
+    private Vector2I GetTargetCell()
+    {
+        Vector2I playerCell = _currentGridPos;
+        if (_player != null && _mazeGrid != null)
+        {
+            playerCell = _mazeGrid.WorldToGrid(_player.GlobalPosition);
+        }
+
+        switch (CurrentMode)
+        {
+            case GhostMode.Chase:
+                return playerCell;
+
+            case GhostMode.Frightened:
+                // Lấy điểm đối xứng của Pac-Man qua ghost để chạy ra xa.
+                return _currentGridPos + (_currentGridPos - playerCell);
+
+            case GhostMode.Eaten:
+            case GhostMode.Scatter:
+            default:
+                return _scatterTarget;
+        }
+    }
+
     private void ChooseNextDirection()
     {
         // Lấy hướng ngược lại so với vừa đi đến để không quay đầu (trừ khi đi ngược tuyệt đối)
@@ -126,12 +163,7 @@ public partial class GhostAI : CharacterBody3D
         // Thuật toán đơn giản: tìm các hướng có thể đi, chọn hướng gần mục tiêu nhất
         Vector2I bestDir = Vector2I.Zero;
         float bestDist = float.MaxValue;
-        Vector2I target = Vector2I.Zero;
-
-        if (CurrentMode is GhostMode.Chase || CurrentMode is GhostMode.Scatter)
-        {
-            target = CurrentMode == GhostMode.Chase ? Vector2I.Zero : _scatterTarget;
-        }
+        Vector2I target = GetTargetCell();
 
         Vector2I[] dirs = [Vector2I.Up, Vector2I.Down, Vector2I.Left, Vector2I.Right];
         foreach (Vector2I dir in dirs)
@@ -153,10 +185,15 @@ public partial class GhostAI : CharacterBody3D
         {
             _targetGridPos = _currentGridPos + bestDir;
         }
+        else if (reverse != Vector2I.Zero && _mazeGrid!.IsWalkable(_currentGridPos + reverse))
+        {
+            // Ngõ cụt: phải quay đầu.
+            _targetGridPos = _currentGridPos + reverse;
+        }
         else
         {
-            // Không có lối thoát (hiếm), phải quay đầu
-            _targetGridPos = _currentGridPos + reverse;
+            // Bị kẹt hoàn toàn (không nên xảy ra với mê cung liên thông): đứng yên.
+            _targetGridPos = _currentGridPos;
         }
     }
 }

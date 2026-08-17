@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://bcp4lmmiq0yy6" path="res://scripts/Player/PlayerController.cs" id="5_player"]
 [ext_resource type="Script" uid="uid://ctsd4v3gbp8hr" path="res://scripts/Camera/CameraController.cs" id="6_cam"]
 [ext_resource type="Texture2D" uid="uid://beq6drb2qxxt3" path="res://assets/maze_map_arcade.png" id="7_tex"]
+[ext_resource type="Script" path="res://scripts/Ghosts/GhostAI.cs" id="8_ghost"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_player"]
 radius = 0.4
@@ -14,6 +15,12 @@ height = 0.8
 
 [sub_resource type="SphereShape3D" id="SphereShape_player"]
 radius = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_ghost"]
+albedo_color = Color(0.9, 0.15, 0.15, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_player"]
+albedo_color = Color(1, 0.85, 0.1, 1)
 
 [node name="Main" type="Node3D"]
 
@@ -33,13 +40,27 @@ MazeTexture = ExtResource("7_tex")
 TargetGrid = NodePath("../MazeGrid")
 
 [node name="Player" type="CharacterBody3D" parent="."]
+unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 1.5)
 script = ExtResource("5_player")
 
 [node name="Mesh" type="MeshInstance3D" parent="Player"]
 mesh = SubResource("SphereMesh_player")
+material_override = SubResource("Mat_player")
 
 [node name="Collision" type="CollisionShape3D" parent="Player"]
+shape = SubResource("SphereShape_player")
+
+[node name="Ghost" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.5, 0, 19.5)
+script = ExtResource("8_ghost")
+_scatterTarget = Vector2i(19, 19)
+
+[node name="Mesh" type="MeshInstance3D" parent="Ghost"]
+mesh = SubResource("SphereMesh_player")
+material_override = SubResource("Mat_ghost")
+
+[node name="Collision" type="CollisionShape3D" parent="Ghost"]
 shape = SubResource("SphereShape_player")
 
 [node name="Camera" type="Camera3D" parent="." node_paths=PackedStringArray("_followTarget")]
